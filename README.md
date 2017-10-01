@@ -1,2 +1,2 @@
 ## Machine Learning Peer Assignment
-See the Report.html file for the summary
+The rendered html report is available at https://sasjvh.github.io/MachineLearningPeerAssignment/Report.html
