@@ -1,0 +1,108 @@
+---
+title: "Machine Learning Peer Assignment"
+author: "Jimmy Hunnings"
+date: "September 30, 2017"
+output:
+  html_document: default
+---
+
+## Summary
+The goal of this assignment is to predict how well a person did an exercise from data collected from accelerometers attached on the belt, forearm, arm and dumbell of the six participants. In the data this means predicting the "classe" variable which represents the manner in which the exercise was done.
+
+## Background
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+## Data
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+## Building the Model
+The following sections describe how the Model was built.
+
+### Variables Eliminated from Consideration
+Variables that were sparsely populated or populated with NA values were eliminated through the use of the colClassVector when reading in the data for the model.  Also removed were items like the person's name and the position in the file which were not accelerometer measurements and shouldn't be used as predictors.
+
+```{r, warning=FALSE, message=FALSE, eval=TRUE}
+require(caret)
+require(data.table)
+set.seed(1)
+colClassVector <- c(rep("NULL", 7),
+                    rep("numeric", 3),
+                    "integer",
+                    rep("NULL", 25),
+                    rep("numeric", 3),
+                    rep("integer", 6),
+                    rep("numeric", 3),
+                    "integer",
+                    rep("NULL", 10),
+                    rep("numeric", 3),
+                    rep("integer", 6),
+                    rep("NULL", 15), 
+                    rep("numeric", 3),
+                    rep("NULL", 15),
+                    "integer",
+                    rep("NULL", 10),
+                    rep("numeric", 3),
+                    rep("integer", 6),
+                    rep("numeric", 3),
+                    rep("NULL", 15),
+                    "integer",
+                    rep("NULL", 10),
+                    rep("numeric", 3),
+                    rep("integer", 6),
+                    NA)
+```
+### Read in the Training and Test Data
+Apply the colClassVector to read in only the pertinent variables from the training and test files.
+
+```{r, warning=FALSE, message=FALSE, eval=TRUE}
+sourceTrainData <- fread("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", 
+                         colClasses = (colClassVector))
+sourceTestData <- fread("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", 
+                        colClasses = (colClassVector))
+```
+### Partition the Training Data
+The dataset is large enough that we will partition it into a training dataset that will be used to train the model and a validation dataset that will be used to estimate the out of sample error rate using cross validation. The training dataset will contain 60% of the observations and the validation dataset the other 40%. The partition is done on the "classe" variable which is the quality of the exercise that we are attempting to model.
+
+```{r, warning=FALSE, message=FALSE, eval=TRUE}
+inTrain <- createDataPartition(sourceTrainData$classe, p = .6)[[1]]
+trainingSet <- sourceTrainData[ inTrain,]
+validationSet <- sourceTrainData[-inTrain,]
+```
+
+### Train the Model
+I chose to utilize a Random Forest Model as it is currently one of the most accurate ensemble models for classification.  It also has the benefit of correcting for the overfitting that is common in decision trees. All of the variables that were read into the training set are sent to the random forest to use to model the "classe" variable. I also set the training control to utilize repeated 10-fold cross validation which is a robust method for estimating the final model accuracy that will be taken as the mean from the three repeats.
+
+```{r, warning=FALSE, message=FALSE, eval=TRUE}
+Model <- train(classe ~ ., method = "rf", data = trainingSet, 
+               trControl = trainControl(method = "repeatedcv", number = 10, repeats = 3))
+Model
+```
+
+### Expected out of Sample Error (Using Cross-Validation)
+Now I utilize the Validation Set to estimate the out of sample error by applying the predict function using the Model and then building a confusion matrix to compare the results of the applied model to the actual values of "classe". The expected error is calculated as 1 - the accuracy.
+
+```{r, warning=FALSE, message=FALSE, eval=TRUE}
+pv <- predict(Model, newdata = validationSet)
+cm <-confusionMatrix(pv, validationSet$classe)
+```
+
+**Expected out of Sample Error = `r {1 - as.numeric(cm$overall['Accuracy'])}` **
+
+Confusion Matrix of Prediction Results
+```{r, warning=FALSE, message=FALSE, eval=TRUE}
+cm
+```
+
+## Prediction of the Twenty Test Cases
+Now apply the Model to the test data to predict the exercise quality:
+
+```{r, warning=FALSE, message=FALSE, eval=TRUE}
+p <- predict(Model, newdata = sourceTestData)
+p
+```
